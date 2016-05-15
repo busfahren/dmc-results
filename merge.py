@@ -11,14 +11,11 @@ def mean_accuracies(teams=None):
     if teams is None:
         teams = team_names()
 
-    original_train = pd.read_csv('data/orders_train.txt', delimiter=';')
-    original_train['returnQuantity'] = original_train['returnQuantity'].astype(bool)
-    original_train = (original_train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'],
-                                               drop=False))
+    original_train = orders_train()
 
     accuracies = pd.Series(np.nan, index=teams)
     for team in teams:
-        team_df = pd.read_csv('results/evaluation_' + team + '.csv', delimiter=';')
+        team_df = pd.read_csv('tests/' + team + '.csv', delimiter=';')
         team_df['prediction'] = team_df['prediction'].astype(bool)
         team_df = team_df.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
         team_df = team_df[['prediction']].merge(original_train, left_index=True, right_index=True)
@@ -31,19 +28,27 @@ def team_names():
     return [name.replace('.csv', '') for name in os.listdir('results') if not name.startswith('.')]
 
 
-def results(names, evaluation=False):
-    prefix = 'evaluation_' if evaluation else 'result_'
+def results(names=None):
+    if names is None:
+        names = team_names()
+
     team_dfs = {}
     for name in names:
-        df = pd.read_csv('results/' + prefix + name + '.csv',
+        df = pd.read_csv('results/' + name + '.csv',
                          delimiter=';')
         team_dfs[name] = df
     return team_dfs
 
 
-def orders():
-    df = pd.read_csv('results/orders_class.txt', delimiter=';')
-    df['prediction'] = df['prediction'].astype(bool)
+def orders_train():
+    original_train = pd.read_csv('data/orders_train.txt', delimiter=';')
+    original_train['returnQuantity'] = original_train['returnQuantity'].astype(bool)
+    return original_train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'],
+                                    drop=False)
+
+
+def orders_class():
+    df = pd.read_csv('data/orders_class.txt', delimiter=';')
     return df[['orderID', 'articleID', 'colorCode', 'sizeCode']]
 
 
@@ -54,7 +59,7 @@ def merge(names=None):
     classifications = results(names)
     merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
 
-    df = orders()
+    df = orders_class()
     for team_name, team_df in classifications.items():
         team_df = team_df.rename(columns={
             'confidence': team_name + '_confidence',
@@ -71,7 +76,7 @@ def merge(names=None):
     return df
 
 
-def majority_vote(df, accuracies):
+def majority_vote(df, accuracies, rounded=False):
     names = df.columns.get_level_values('team').unique()
     mean_confidences = pd.Series([df[n]['confidence'].mean() for n in names],
                                  index=names)
@@ -92,7 +97,9 @@ def majority_vote(df, accuracies):
         return summed_weighted_votes / summed_weights
 
     predictions = [weighted_row_majority(row) for _, row in df.iterrows()]
-    df['all', 'prediction'] = predictions  # np.round(predictions).astype(int)
+    if rounded:
+        predictions = np.round(predictions).astype(int)
+    df['all', 'prediction'] = predictions
     return df
 
 
@@ -112,6 +119,8 @@ def validate():
             assert list(df.columns) == expected_columns
             assert ~(df[['orderID', 'articleID', 'colorCode', 'sizeCode', 'prediction']]
                      .isnull().any().any())
+            assert df['orderID'].astype(str).str.startswith('a').all()
+            assert df['articleID'].astype(str).str.startswith('i').all()
             if file.startswith('results/'):
                 assert len(df) == 341098
         except AssertionError:
@@ -146,13 +155,10 @@ def evaluate(teams=None):
     splits = pd.read_csv('data/splits.csv', delimiter=';')
     splits.loc[:, split_columns] = splits.loc[:, split_columns].astype(bool)
 
-    original_train = pd.read_csv('data/orders_train.txt', delimiter=';')
-    original_train['returnQuantity'] = original_train['returnQuantity'].astype(bool)
-    original_train = (original_train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'],
-                                               drop=False))
+    original_train = orders_train()
 
     for name in teams:
-        team_df = pd.read_csv('results/evaluation_' + name + '.csv', delimiter=';')
+        team_df = pd.read_csv('tests/' + name + '.csv', delimiter=';')
         team_df['prediction'] = team_df['prediction'].astype(bool)
         team_df = team_df.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
         team_df = team_df[['prediction']].merge(original_train, left_index=True, right_index=True)
@@ -189,16 +195,9 @@ def evaluate(teams=None):
     return splits
 
 
-def drop_quantity(team, evaluation=False):
-    prefix = 'evaluation_' if evaluation else 'result_'
-    path = 'results/' + prefix + team + '.csv'
-
-    df = pd.read_csv(path, delimiter=';')
-
-    try:
-        df = df.drop('quantity', axis=1)
-        df.to_csv(path, sep=';', index=False)
-    except ValueError:
-        pass
-
-    validate(team)
+def _fix_team_c(path):
+    df = pd.read_csv(path, index_col=0, sep=';')
+    df = df.drop('quantity', axis=1)
+    df['orderID'] = 'a' + df['orderID'].astype(str)
+    df['articleID'] = 'i' + df['articleID'].astype(str)
+    df.to_csv(path, index=False, sep=';')
