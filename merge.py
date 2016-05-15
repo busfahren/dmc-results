@@ -1,5 +1,4 @@
 import os
-import json
 import itertools
 
 import pandas as pd
@@ -7,18 +6,12 @@ import numpy as np
 
 
 def mean_accuracies(teams=None):
-    """Check what results are present and load for each found team the evaluation set.
-    Use it to calculate the mean accuracy.
-
-    Returns
-    -------
-    pd.Series
-        containing the accuracy for each team
+    """Check results present and use the evaluation set to calculate the mean accuracy for each team.
     """
     if teams is None:
         teams = team_names()
 
-    original_train = pd.read_csv('results/orders_train.txt', delimiter=';')
+    original_train = pd.read_csv('data/orders_train.txt', delimiter=';')
     original_train['returnQuantity'] = original_train['returnQuantity'].astype(bool)
     original_train = (original_train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'],
                                                drop=False))
@@ -35,16 +28,7 @@ def mean_accuracies(teams=None):
 
 
 def team_names():
-    result_files = [name for name in os.listdir('results') if name.startswith('result_')]
-    return [file.replace('.csv', '').replace('result_', '') for file in result_files]
-
-
-def split_accuracies(team_names):
-    splits = {}
-    for name in team_names:
-        df = pd.read_csv('results/splits_' + name + '.csv', delimiter=';')
-        splits[name] = df
-    return splits
+    return [name.replace('.csv', '') for name in os.listdir('results') if not name.startswith('.')]
 
 
 def results(names, evaluation=False):
@@ -59,7 +43,7 @@ def results(names, evaluation=False):
 
 def orders():
     df = pd.read_csv('results/orders_class.txt', delimiter=';')
-    df['prediction'] = df['prediction'].astype(int)
+    df['prediction'] = df['prediction'].astype(bool)
     return df[['orderID', 'articleID', 'colorCode', 'sizeCode']]
 
 
@@ -112,20 +96,29 @@ def majority_vote(df, accuracies):
     return df
 
 
-def validate_result(team, evaluation=False):
-    prefix = 'evaluation_' if evaluation else 'result_'
-    df = pd.read_csv('results/' + prefix + team + '.csv', delimiter=';')
+def validate():
+    # folder = 'evaluation/' if evaluation else 'result/'
 
     expected_columns = ['orderID', 'articleID', 'colorCode',
                         'sizeCode', 'confidence', 'prediction']
-    assert (df.columns == expected_columns)
-    assert (df.columns == expected_columns).all()
-    assert ~df[['orderID', 'articleID', 'colorCode', 'sizeCode', 'prediction']].isnull().any().any()
 
-    if not evaluation:
-        assert len(df) == 341098
+    results = ['results/' + file for file in os.listdir('results') if not file.startswith('.')]
+    tests = ['tests/' + file for file in os.listdir('tests') if not file.startswith('.')]
 
-    print('File is good')
+    for file in results + tests:
+        df = pd.read_csv(file, delimiter=';')
+
+        try:
+            assert list(df.columns) == expected_columns
+            assert ~(df[['orderID', 'articleID', 'colorCode', 'sizeCode', 'prediction']]
+                     .isnull().any().any())
+            if file.startswith('results/'):
+                assert len(df) == 341098
+        except AssertionError:
+            print('%s: Assertion failed' % file)
+            return df
+
+        print('%s is good' % file)
 
 
 def validate_submission(path):
@@ -150,10 +143,10 @@ def evaluate(teams=None):
         teams = team_names()
 
     split_columns = ['articleID', 'productGroup', 'customerID', 'voucherID']
-    splits = pd.read_csv('results/splits.csv', delimiter=';')
+    splits = pd.read_csv('data/splits.csv', delimiter=';')
     splits.loc[:, split_columns] = splits.loc[:, split_columns].astype(bool)
 
-    original_train = pd.read_csv('results/orders_train.txt', delimiter=';')
+    original_train = pd.read_csv('data/orders_train.txt', delimiter=';')
     original_train['returnQuantity'] = original_train['returnQuantity'].astype(bool)
     original_train = (original_train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'],
                                                drop=False))
@@ -201,7 +194,11 @@ def drop_quantity(team, evaluation=False):
     path = 'results/' + prefix + team + '.csv'
 
     df = pd.read_csv(path, delimiter=';')
-    df = df.drop('quantity', axis=1)
-    df.to_csv(path, sep=';', index=False)
 
-    validate_result(path)
+    try:
+        df = df.drop('quantity', axis=1)
+        df.to_csv(path, sep=';', index=False)
+    except ValueError:
+        pass
+
+    validate(team)
