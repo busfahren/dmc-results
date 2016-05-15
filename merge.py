@@ -1,4 +1,3 @@
-import os
 import itertools
 
 import numpy as np
@@ -82,7 +81,6 @@ def evaluate_split_performance(teams=None):
         teams = load.team_names()
 
     splits = load.splits()
-
     original_train = load.orders_train()
 
     for name in teams:
@@ -94,13 +92,11 @@ def evaluate_split_performance(teams=None):
         # Orders that were in original training, but not in test set
         train = load.train_complement(team_df, test=True)
 
-        def extend_splits(i, mask):
-            splits.loc[i, name + '_size'] = mask.sum()
-            splits.loc[i, name] = (team_df[mask]['returnQuantity']
-                                   == team_df[mask]['prediction']).sum() / mask.sum()
-
-        iterate_split_masks(train, team_df, extend_splits)
-
+        for split, mask in iterate_split_masks(train, team_df):
+            splits.loc[split, name + '_size'] = mask.sum()
+            splits.loc[split, name] = (team_df[mask]['returnQuantity']
+                                       == team_df[mask]['prediction']).sum() / mask.sum()
+    
     # Aggregate split sizes
     size_columns = [c for c in splits.columns if c.endswith('_size')]
     splits['size'] = splits[size_columns].mean(axis=1).astype(int)
@@ -133,15 +129,15 @@ def distinct_split_predictions(team1, team2):
     pass
 
 
-def iterate_split_masks(train, test, func):
+def iterate_split_masks(train, test):
     splits = load.splits()
     split_columns = splits.columns
 
     known = pd.DataFrame({col: test[col].isin(train[col]) for col in split_columns})
 
-    for i, row in list(splits.iterrows()):
+    for split_index, row in list(splits.iterrows()):
         mask = pd.Series(True, index=known.index)
         for col in split_columns:
             mask &= (known[col] == row[col])
 
-        func(i, mask)
+        yield split_index, mask
