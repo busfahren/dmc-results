@@ -2,21 +2,22 @@ import os
 import itertools
 
 import numpy as np
+import pandas as pd
 
-from loading import *
+import load
 
 
 def mean_accuracies(teams=None):
     """Check results present and use the evaluation set to calculate the mean accuracy for each team.
     """
     if teams is None:
-        teams = team_names()
+        teams = load.team_names()
 
-    original_train = orders_train()
+    original_train = load.orders_train()
 
     accuracies = pd.Series(np.nan, index=teams)
     for team in teams:
-        team_df = pd.read_csv('tests/' + team + '.csv', delimiter=';')
+        team_df = load.prediction(team, test=True)
         team_df['prediction'] = team_df['prediction'].astype(bool)
         team_df = team_df.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
         team_df = team_df[['prediction']].merge(original_train, left_index=True, right_index=True)
@@ -25,14 +26,14 @@ def mean_accuracies(teams=None):
     return accuracies
 
 
-def merge(names=None):
+def merge_predictions(names=None):
     if names is None:
-        names = team_names()
+        names = load.team_names()
 
-    classifications = predictions(names, test=False)
+    classifications = load.predictions(names, test=False)
     merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
 
-    df = orders_class()
+    df = load.orders_class()
     for team_name, team_df in classifications.items():
         team_df = team_df.rename(columns={
             'confidence': team_name + '_confidence',
@@ -76,38 +77,29 @@ def majority_vote(df, accuracies, rounded=False):
     return df
 
 
-def evaluate(teams=None):
+def evaluate_split_performance(teams=None):
     if teams is None:
-        teams = team_names()
+        teams = load.team_names()
 
-    split_columns = ['articleID', 'productGroup', 'customerID', 'voucherID']
-    splits = pd.read_csv('data/splits.csv', delimiter=';')
-    splits.loc[:, split_columns] = splits.loc[:, split_columns].astype(bool)
+    splits = load.splits()
 
-    original_train = orders_train()
+    original_train = load.orders_train()
 
     for name in teams:
-        team_df = pd.read_csv('tests/' + name + '.csv', delimiter=';')
+        team_df = load.prediction(name, test=True)
         team_df['prediction'] = team_df['prediction'].astype(bool)
         team_df = team_df.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
         team_df = team_df[['prediction']].merge(original_train, left_index=True, right_index=True)
 
         # Orders that were in original training, but not in test set
-        train = original_train[~(original_train.orderID.isin(team_df.orderID)
-                                 & original_train.articleID.isin(team_df.articleID)
-                                 & original_train.colorCode.isin(team_df.colorCode)
-                                 & original_train.sizeCode.isin(team_df.sizeCode))]
+        train = load.train_complement(team_df, test=True)
 
-        known = pd.DataFrame({col: team_df[col].isin(train[col]) for col in split_columns})
-
-        for i, row in list(splits.iterrows()):
-            mask = pd.Series(True, index=known.index)
-            for col in split_columns:
-                mask &= (known[col] == row[col])
-
+        def extend_splits(i, mask):
             splits.loc[i, name + '_size'] = mask.sum()
             splits.loc[i, name] = (team_df[mask]['returnQuantity']
                                    == team_df[mask]['prediction']).sum() / mask.sum()
+
+        iterate_split_masks(train, team_df, extend_splits)
 
     # Aggregate split sizes
     size_columns = [c for c in splits.columns if c.endswith('_size')]
@@ -120,9 +112,9 @@ def evaluate(teams=None):
     return splits
 
 
-def differences(test=True):
-    teams = team_names()
-    team_predictions = predictions(teams, test)
+def distinct_predictions(test=True):
+    teams = load.team_names()
+    team_predictions = load.predictions(teams, test)
 
     diffs = pd.DataFrame(0, columns=teams, index=teams)
     for t1, t2 in itertools.combinations(teams, 2):
@@ -135,3 +127,21 @@ def differences(test=True):
         diffs.loc[t2, t1] = different
 
     return diffs
+
+
+def distinct_split_predictions(team1, team2):
+    pass
+
+
+def iterate_split_masks(train, test, func):
+    splits = load.splits()
+    split_columns = splits.columns
+
+    known = pd.DataFrame({col: test[col].isin(train[col]) for col in split_columns})
+
+    for i, row in list(splits.iterrows()):
+        mask = pd.Series(True, index=known.index)
+        for col in split_columns:
+            mask &= (known[col] == row[col])
+
+        func(i, mask)
