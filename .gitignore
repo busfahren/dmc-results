@@ -1,3 +1,6 @@
+# Data
+results/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -20,9 +23,6 @@ lib64/
 parts/
 sdist/
 var/
-# Data
-results/
-
 *.egg-info/
 .installed.cfg
 *.egg
@@ -62,4 +62,8 @@ docs/_build/
 target/
 
 #Ipython Notebook
+<<<<<<< HEAD
 .ipynb_checkpoints
+=======
+.ipynb_checkpoints
+>>>>>>> 629cda0da0c8c750a9f8ae8949af0369c7bb85af
