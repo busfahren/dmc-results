@@ -4,7 +4,8 @@ import pandas as pd
 
 
 def team_names():
-    return [name.replace('.csv', '') for name in os.listdir('results') if not name.startswith('.')]
+    return [name.replace('.csv', '') for name in os.listdir('results')
+            if not name.startswith('.')]
 
 
 def predictions(names=None, test=True):
@@ -16,6 +17,7 @@ def predictions(names=None, test=True):
     team_dfs = {}
     for name in names:
         df = pd.read_csv(os.path.join(folder, name + '.csv'), delimiter=';')
+        df['prediction'] = df['prediction'].astype(bool)
         team_dfs[name] = df
     return team_dfs
 

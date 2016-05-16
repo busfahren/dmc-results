@@ -6,47 +6,42 @@ import pandas as pd
 import load
 
 
-def mean_accuracies(teams=None):
-    """Check results present and use the evaluation set to calculate the mean accuracy for each team.
-    """
+def merged_predictions(teams=None, test=False, keep_columns=None):
     if teams is None:
         teams = load.team_names()
 
-    original_train = load.orders_train()
-
-    accuracies = pd.Series(np.nan, index=teams)
-    for team in teams:
-        team_df = load.prediction(team, test=True)
-        team_df['prediction'] = team_df['prediction'].astype(bool)
-        team_df = team_df.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
-        team_df = team_df[['prediction']].merge(original_train, left_index=True, right_index=True)
-        accuracies[team] = (team_df['prediction'] == team_df['returnQuantity']).sum() / len(team_df)
-
-    return accuracies
-
-
-def merge_predictions(names=None):
-    if names is None:
-        names = load.team_names()
-
-    classifications = load.predictions(names, test=False)
+    classifications = load.predictions(teams, test)
     merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
 
-    df = load.orders_class()
+    original = load.orders_train() if test else load.orders_class()
+    predictions = original[merge_columns]
+
     for team_name, team_df in classifications.items():
         team_df = team_df.rename(columns={
-            'confidence': team_name + '_confidence',
-            'prediction': team_name + '_prediction'
+            'confidence': 'confidence_' + team_name,
+            'prediction': 'prediction_' + team_name
         })
-        df = df.merge(team_df, on=merge_columns)
+        predictions = predictions.merge(team_df, on=merge_columns)
 
-    df = df.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'])
-    df = df.reindex_axis(sorted(df.columns), axis=1)
-    df.columns = pd.MultiIndex.from_tuples(list(itertools.product(
-        sorted(classifications.keys()),
-        ['confidence', 'prediction']
-    )), names=['team', 'result'])
-    return df
+    predictions = predictions.set_index(merge_columns)
+    predictions = predictions.reindex_axis(sorted(predictions.columns), axis=1)
+    predictions.columns = pd.MultiIndex.from_tuples(list(itertools.product(
+        ['confidence', 'prediction'],
+        sorted(classifications.keys())
+    )))
+
+    if keep_columns:
+        original = original.set_index(merge_columns)[keep_columns]
+        idx = pd.MultiIndex.from_tuples(list(itertools.product(['original'], keep_columns)))
+        original.columns = idx
+        predictions = predictions.merge(original, left_index=True, right_index=True)
+
+    return predictions
+
+
+def mean_accuracies(merged):
+    target = merged['original', 'returnQuantity']
+    return merged['prediction'].apply(lambda pred: (pred == target).sum() / len(pred))
 
 
 def majority_vote(df, accuracies, rounded=False):

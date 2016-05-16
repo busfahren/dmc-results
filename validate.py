@@ -19,12 +19,22 @@ def validate():
             assert list(df.columns) == expected_columns
             assert ~(df[['orderID', 'articleID', 'colorCode', 'sizeCode', 'prediction']]
                      .isnull().any().any())
+        except ValueError:
+            print('%s: Wrong columns' % file)
+            return df
+
+        try:
             assert df['orderID'].astype(str).str.startswith('a').all()
             assert df['articleID'].astype(str).str.startswith('i').all()
+        except ValueError:
+            print('%s: orderID, articleID or both are wrong' % file)
+            return df
+
+        try:
             if file.startswith('results/'):
                 assert len(df) == 341098
-        except AssertionError:
-            print('%s: Assertion failed' % file)
+        except ValueError:
+            print('%s: Wrong number of lines in classification file' % file)
             return df
 
         print('%s is good' % file)
