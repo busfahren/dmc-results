@@ -25,7 +25,11 @@ def prediction(team, test=True):
 
 
 def splits():
-    return pd.read_csv('data/splits.csv', delimiter=';').astype(bool)
+    known_combinations = pd.read_csv('data/splits.csv', delimiter=';').astype(bool)
+    known_combinations.index = pd.Index([', '.join(row.index[row]) for _, row
+                                         in known_combinations.iterrows()])
+    known_combinations.index.name = 'known'
+    return known_combinations
 
 
 def orders_train():
@@ -38,13 +42,3 @@ def orders_train():
 def orders_class():
     df = pd.read_csv('data/orders_class.txt', delimiter=';')
     return df[['orderID', 'articleID', 'colorCode', 'sizeCode']]
-
-
-def train_complement(test_set, test=True):
-    train = orders_train()
-    if test:
-        train = train[~(train.orderID.isin(test_set.orderID)
-                        & train.articleID.isin(test_set.articleID)
-                        & train.colorCode.isin(test_set.colorCode)
-                        & train.sizeCode.isin(test_set.sizeCode))]
-    return train

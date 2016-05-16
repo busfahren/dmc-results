@@ -81,6 +81,7 @@ def evaluate_split_performance(teams=None):
         teams = load.team_names()
 
     splits = load.splits()
+    split_columns = splits.columns
     original_train = load.orders_train()
 
     for name in teams:
@@ -90,13 +91,13 @@ def evaluate_split_performance(teams=None):
         team_df = team_df[['prediction']].merge(original_train, left_index=True, right_index=True)
 
         # Orders that were in original training, but not in test set
-        train = load.train_complement(team_df, test=True)
+        train = train_complement(team_df, test=True)
 
         for split, mask in iterate_split_masks(train, team_df):
             splits.loc[split, name + '_size'] = mask.sum()
             splits.loc[split, name] = (team_df[mask]['returnQuantity']
                                        == team_df[mask]['prediction']).sum() / mask.sum()
-    
+
     # Aggregate split sizes
     size_columns = [c for c in splits.columns if c.endswith('_size')]
     splits['size'] = splits[size_columns].mean(axis=1).astype(int)
@@ -104,6 +105,9 @@ def evaluate_split_performance(teams=None):
 
     # Best performing team per split
     splits['best'] = splits[teams].idxmax(axis=1)
+
+    # Naming
+    splits = splits.drop(split_columns, axis=1)
 
     return splits
 
@@ -122,22 +126,63 @@ def distinct_predictions(test=True):
         diffs.loc[t1, t2] = different
         diffs.loc[t2, t1] = different
 
+    diffs.columns.name = 'team'
+    diffs.index.name = 'team'
+
     return diffs
 
 
-def distinct_split_predictions(team1, team2):
-    pass
+def distinct_split_predictions(test=True):
+    teams = load.team_names()
+    team_predictions = load.predictions(teams, test)
+    team_combinations = list(itertools.combinations(teams, 2))
+    splits = load.splits()
+    original_train = load.orders_train()
+    merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
+
+    diffs = pd.DataFrame(0, columns=team_combinations, index=splits.index)
+    for t1, t2 in team_combinations:
+        df1 = team_predictions[t1].drop('confidence', axis=1)
+        df2 = team_predictions[t2].drop('confidence', axis=1)
+
+        combined = df1.merge(df2, on=merge_columns)
+        combined = combined.merge(original_train, on=merge_columns)
+
+        train = train_complement(test_set=combined, train_set=original_train, test=test)
+
+        for split, mask in iterate_split_masks(train, combined):
+            split_rows = combined[mask]
+            if len(split_rows) == 0:
+                continue
+            difference = np.round((split_rows['prediction_x'] != split_rows['prediction_y']).sum()
+                                  / len(split_rows), 3)
+            diffs.loc[split, (t1, t2)] = difference
+
+    diffs.columns = pd.Index([' <> '.join(teams) for teams in team_combinations], name='combination')
+    return diffs
 
 
 def iterate_split_masks(train, test):
     splits = load.splits()
-    split_columns = splits.columns
+    known = pd.DataFrame({col: test[col].isin(train[col]) for col in splits.columns})
 
-    known = pd.DataFrame({col: test[col].isin(train[col]) for col in split_columns})
-
-    for split_index, row in list(splits.iterrows()):
+    for split, row in list(splits.iterrows()):
         mask = pd.Series(True, index=known.index)
-        for col in split_columns:
+        for col in splits.columns:
             mask &= (known[col] == row[col])
 
-        yield split_index, mask
+        yield split, mask
+
+
+def train_complement(test_set, train_set=None, test=True):
+    if train_set is None:
+        train_set = load.orders_train()
+    if not test:
+        # If this is not for evaluation just return the entire set
+        # assuming that it is the original training data
+        return train_set
+
+    return train_set[~(train_set.orderID.isin(test_set.orderID)
+                       & train_set.articleID.isin(test_set.articleID)
+                       & train_set.colorCode.isin(test_set.colorCode)
+                       & train_set.sizeCode.isin(test_set.sizeCode))]
