@@ -14,11 +14,15 @@ def validate_all():
 
         try:
             assert list(df.columns) == expected_columns
-            assert ~(df[['orderID', 'articleID', 'colorCode', 'sizeCode', 'prediction']]
-                     .isnull().any().any())
         except AssertionError:
             print('%s: Wrong columns' % file)
             return df
+
+        try:
+            assert ~(df[['orderID', 'articleID', 'colorCode', 'sizeCode', 'prediction']]
+                     .isnull().any().any())
+        except AssertionError:
+            print('%s: Contains nulls' % file)
 
         try:
             assert df['orderID'].astype(str).str.startswith('a').all()
