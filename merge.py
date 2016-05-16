@@ -72,6 +72,7 @@ def majority_vote(df, accuracies, rounded=False):
 
 
 def evaluate_split_performance(teams=None):
+    raise NotImplementedError
     if teams is None:
         teams = load.team_names()
 
@@ -86,7 +87,7 @@ def evaluate_split_performance(teams=None):
         team_df = team_df[['prediction']].merge(original_train, left_index=True, right_index=True)
 
         # Orders that were in original training, but not in test set
-        train = train_complement(team_df, test=True)
+        # TODO train = train_complement(team_df, train=True)
 
         for split, mask in iterate_split_masks(train, team_df):
             splits.loc[split, name + '_size'] = mask.sum()
@@ -129,6 +130,7 @@ def distinct_predictions(test=True):
 
 
 def distinct_split_predictions(test=True):
+    raise NotImplementedError
     teams = load.team_names()
     team_predictions = load.predictions(teams, test)
     team_combinations = list(itertools.combinations(teams, 2))
@@ -145,7 +147,7 @@ def distinct_split_predictions(test=True):
         combined = df1.merge(df2, on=merge_columns)
         combined = combined.merge(original, left_on=merge_columns, right_index=True)
 
-        train = train_complement(test_set=combined, train_set=original, test=test)
+        # TODO train = train_complement(test=combined, train=original, test=test)
 
         for split, mask in iterate_split_masks(train, combined):
             split_rows = combined[mask]
@@ -171,19 +173,11 @@ def iterate_split_masks(train, test):
         yield split, mask
 
 
-def train_complement(test_set, train_set=None, test=True):
-    if not test:
-        # If this is not for evaluation just return the entire set
-        # assuming that it is the original training data
-        return load.orders_train()
-
-    if train_set is None:
-        train_set = load.orders_train()
-
-    return train_set[~(train_set.orderID.isin(test_set.orderID)
-                       & train_set.articleID.isin(test_set.articleID)
-                       & train_set.colorCode.isin(test_set.colorCode)
-                       & train_set.sizeCode.isin(test_set.sizeCode))]
+def train_complement(train, test):
+    return train[~(train.orderID.isin(test.orderID)
+                   & train.articleID.isin(test.articleID)
+                   & train.colorCode.isin(test.colorCode)
+                   & train.sizeCode.isin(test.sizeCode))]
 
 
 def original_split_sizes():

@@ -3,14 +3,11 @@ import os
 import pandas as pd
 
 
-def validate():
-    # folder = 'evaluation/' if evaluation else 'result/'
-
-    expected_columns = ['orderID', 'articleID', 'colorCode',
-                        'sizeCode', 'confidence', 'prediction']
-
+def validate_all():
     results = ['results/' + file for file in os.listdir('results') if not file.startswith('.')]
     tests = ['tests/' + file for file in os.listdir('tests') if not file.startswith('.')]
+
+    expected_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode', 'confidence', 'prediction']
 
     for file in results + tests:
         df = pd.read_csv(file, delimiter=';')
@@ -19,21 +16,21 @@ def validate():
             assert list(df.columns) == expected_columns
             assert ~(df[['orderID', 'articleID', 'colorCode', 'sizeCode', 'prediction']]
                      .isnull().any().any())
-        except ValueError:
+        except AssertionError:
             print('%s: Wrong columns' % file)
             return df
 
         try:
             assert df['orderID'].astype(str).str.startswith('a').all()
             assert df['articleID'].astype(str).str.startswith('i').all()
-        except ValueError:
+        except AssertionError:
             print('%s: orderID, articleID or both are wrong' % file)
             return df
 
         try:
             if file.startswith('results/'):
                 assert len(df) == 341098
-        except ValueError:
+        except AssertionError:
             print('%s: Wrong number of lines in classification file' % file)
             return df
 
