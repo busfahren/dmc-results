@@ -35,10 +35,9 @@ def splits():
 def orders_train():
     train = pd.read_csv('data/orders_train.txt', delimiter=';')
     train['returnQuantity'] = train['returnQuantity'].astype(bool)
-    return train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'],
-                           drop=False)
+    return train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
 
 
 def orders_class():
     df = pd.read_csv('data/orders_class.txt', delimiter=';')
-    return df[['orderID', 'articleID', 'colorCode', 'sizeCode']]
+    return df.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
