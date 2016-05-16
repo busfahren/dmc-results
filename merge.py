@@ -31,7 +31,7 @@ def merged_predictions(teams=None, test=False, keep_columns=None):
     )))
 
     if keep_columns:
-        original = original.set_index(merge_columns)[keep_columns]
+        original = original.set_index(merge_columns, drop=False)[keep_columns]
         idx = pd.MultiIndex.from_tuples(list(itertools.product(['original'], keep_columns)))
         original.columns = idx
         predictions = predictions.merge(original, left_index=True, right_index=True)
@@ -64,3 +64,7 @@ def majority_vote(df, accuracies, rounded=False):
         final_predictions = np.round(final_predictions).astype(int)
     df['all', 'prediction'] = final_predictions
     return df
+
+
+def impute_confidences(merged):
+    return merged[merged.isnull().any(axis=1)]
