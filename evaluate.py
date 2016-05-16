@@ -28,6 +28,7 @@ def evaluate_split_performance(train, test):
 
         team_performances.loc[split] = split_performances
 
+    team_performances.columns.name = 'team'
     return team_performances.astype(float)
 
 
@@ -80,10 +81,12 @@ def split_mean_confidences(train, test):
 
 def split_sizes(train, test):
     splits = load.splits()
+    sizes = pd.DataFrame(columns=['size'], index=splits.index)
     for split, mask in _iterate_split_masks(splits, train, test):
-        splits.loc[split, 'size'] = mask.sum()
-    splits['size'] /= len(test)
-    return splits[['size']]
+        sizes.loc[split, 'size'] = mask.sum()
+
+    sizes['size'] /= len(test)
+    return sizes
 
 
 def _iterate_split_masks(splits, train, test):
