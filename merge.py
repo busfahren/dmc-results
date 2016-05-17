@@ -50,41 +50,45 @@ def merged_predictions(teams=None, test=False, keep_columns=None):
     return predictions
 
 
-def majority_vote(df, accuracies, rounded=False):
-    raise NotImplementedError
-    names = df.columns.get_level_values('team').unique()
-    mean_confidences = pd.Series([df[n]['confidence'].mean() for n in names],
-                                 index=names)
-    # The ratio of each classification's accuracy to the mean accuracy
-    mean_accuracy_ratios = accuracies / accuracies.mean()
+def weighted_majority_vote(predictions, team_weights, rounded=False):
+    predictions = predictions.copy()
 
-    def weighted_row_majority(prediction_row):
-        summed_weighted_votes = 0
-        summed_weights = 0
-        for n in names:
-            confidence, prediction = prediction_row[n]
-            # Ratio of the confidence in the row to the classification's mean confidence
-            confidence_ratio = confidence / mean_confidences[n]
-            weight = confidence_ratio * np.square(mean_accuracy_ratios[n])
-            if prediction:
-                summed_weighted_votes += weight
-            summed_weights += weight
-        return summed_weighted_votes / summed_weights
+    def weighted_row_majority(row):
+        weights = row['confidence'].mul(team_weights)
+        return row['prediction'].mul(weights).sum() / weights.sum()
 
-    final_predictions = [weighted_row_majority(row) for _, row in df.iterrows()]
+    weighted_majority = predictions.apply(weighted_row_majority, axis=1)
+
     if rounded:
-        final_predictions = np.round(final_predictions).astype(int)
-    df['all', 'prediction'] = final_predictions
-    return df
+        weighted_majority = weighted_majority.round().astype(bool)
+
+    return weighted_majority
 
 
-def impute_confidences(merged):
-    """For each confidence subtract the classifier's mean confidence and then divide by the
-    standard deviation. Impute missing values with zeroes (the new mean)/
-    """
-    merged['confidence'] = (merged['confidence']
-                            .sub(merged['confidence'].mean())
-                            .div(merged['confidence'].std()))
-
-    merged['confidence'] = merged['confidence'].fillna(0)
+def naive_majority_vote(predictions):
+    merged = predictions.copy()
+    merged['prediction', 'naive'] = merged['prediction'].mean(axis=1).round().astype(bool)
+    merged = merged.sort_index(axis=1)
     return merged
+
+
+def impute_confidence(predictions):
+    """For each confidence subtract the classifier's mean confidence and then divide by the
+    standard deviation. Impute missing values with zeroes (the new mean). Finally move the
+    distribution to center around 1 and range from 0 to 2.
+    """
+    imputed = predictions.copy()
+
+    # Convert confidences to standard deviation distances
+    imputed['confidence'] = (imputed['confidence']
+                             .sub(imputed['confidence'].mean())
+                             .div(imputed['confidence'].std()))
+
+    # Fill missing values
+    imputed['confidence'] = imputed['confidence'].fillna(0)
+
+    # Confine range to distance of 1 from the mean and move distribution's center to 1.
+    imputed['confidence'] = (imputed['confidence']
+                             .div(imputed['confidence'].abs().max())
+                             .add(1))
+    return imputed
