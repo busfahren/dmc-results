@@ -92,3 +92,32 @@ def impute_confidence(predictions):
                              .div(imputed['confidence'].abs().max())
                              .add(1))
     return imputed
+
+
+def binary_vector(train, test, columns):
+    """Create a mask of test values seen in training data.
+    """
+    known_mask = test[columns].copy().apply(lambda column: column.isin(train[column.name])).astype(int)
+    known_mask.columns = ('known_' + c for c in columns)
+    return known_mask
+
+
+def boosting_features(train, predictions, categories):
+    # confidence vectors
+    confs = predictions.confidence.copy()
+    confs.columns = ['confA', 'confB', 'confC']
+    # prediction vectors
+    preds = predictions.prediction.copy().astype(int)
+    preds.columns = ['predA', 'predB', 'predC']
+    # binary vectors for known/unknown categories
+    known = binary_vector(train, predictions.original, categories)
+
+    # Merge all feature vectors and only mind rows with disagreement in prediction
+    M = pd.concat([confs, preds, known, predictions.original.returnQuantity.astype(int)], 1)
+    M = M[(M.predA != M.predB) | (M.predA != M.predC)]
+
+    # Create X and y as matrices to be passed to classifiers
+    X = M.drop('returnQuantity', 1).as_matrix()
+    y = np.squeeze(M.returnQuantity.as_matrix())
+    return X, y
+
