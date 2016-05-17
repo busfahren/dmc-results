@@ -64,7 +64,7 @@ def weighted_majority_vote(merged, team_weights, round=False):
     rows = zip(predictions.iterrows(), weights.iterrows())
 
     pool = mp.Pool()
-    majorities = pool.map(_weighted_row_majority, rows, chunksize=10000)
+    majorities = pool.map(_weighted_row_majority, rows, chunksize=100)
 
     if round:
         majorities = np.round(majorities).astype(bool)
