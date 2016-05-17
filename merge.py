@@ -1,4 +1,5 @@
 import itertools
+import multiprocessing as mp
 
 import numpy as np
 import pandas as pd
@@ -50,19 +51,28 @@ def merged_predictions(teams=None, test=False, keep_columns=None):
     return predictions
 
 
-def weighted_majority_vote(predictions, team_weights, rounded=False):
-    predictions = predictions.copy()
+def _weighted_row_majority(row):
+    predictions = row[0][1]
+    weights = row[1][1]
+    return predictions.mul(weights).sum() / weights.sum()
 
-    def weighted_row_majority(row):
-        weights = row['confidence'].mul(team_weights)
-        return row['prediction'].mul(weights).sum() / weights.sum()
 
-    weighted_majority = predictions.apply(weighted_row_majority, axis=1)
+def weighted_majority_vote(merged, team_weights, round=False):
+    merged = merged.copy()
+    predictions = merged['prediction'].copy()
+    weights = merged['confidence'].mul(team_weights).copy()
+    rows = zip(predictions.iterrows(), weights.iterrows())
 
-    if rounded:
-        weighted_majority = weighted_majority.round().astype(bool)
+    pool = mp.Pool()
+    majorities = pool.map(_weighted_row_majority, rows, chunksize=10000)
 
-    return weighted_majority
+    if round:
+        majorities = np.round(majorities).astype(bool)
+
+    merged['prediction', 'weighted'] = majorities
+    merged = merged.sort_index(axis=1)
+
+    return merged
 
 
 def naive_majority_vote(predictions):
