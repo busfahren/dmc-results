@@ -121,3 +121,6 @@ def boosting_features(train, predictions, categories):
     y = np.squeeze(M.returnQuantity.as_matrix())
     return X, y
 
+def precision(y, y_tick):
+    return np.sum(y == y_tick)/len(y)
+
