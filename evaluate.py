@@ -9,8 +9,12 @@ merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
 
 
 def mean_accuracies(predictions):
+    """Take merged predictions and calculate mean accuracy for each team.
+    """
     target = predictions['original', 'returnQuantity']
-    return predictions['prediction'].apply(lambda pred: (pred == target).sum() / len(pred))
+    means = (predictions['prediction']
+             .apply(lambda team: (team == target).sum() / len(target)))
+    return pd.DataFrame(means, columns=['accuracy'])
 
 
 def evaluate_split_performance(train, test):
@@ -62,7 +66,7 @@ def distinct_split_predictions(train, test):
             diff = ((split_predictions[t1] != split_predictions[t2]).sum() / split_size)
             differences.loc[split, (t1, t2)] = diff
 
-    differences.columns = [', '.join(c) for c in differences.columns]
+    differences.columns = [' '.join(c) for c in differences.columns]
     return differences.astype(float)
 
 

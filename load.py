@@ -4,11 +4,15 @@ import pandas as pd
 
 
 def team_names():
+    """Look for files in results directory. Ignore names beginning with '.' and '_'.
+    """
     return [name.replace('.csv', '') for name in os.listdir('results')
-            if not name.startswith('.')]
+            if not name.startswith('_') and not name.startswith('.')]
 
 
 def predictions(names=None, test=True):
+    """Load prediction files.
+    """
     if names is None:
         names = team_names()
 
@@ -20,10 +24,6 @@ def predictions(names=None, test=True):
         df['prediction'] = df['prediction'].astype(bool)
         team_dfs[name] = df
     return team_dfs
-
-
-def prediction(team, test=True):
-    return predictions([team], test)[team]
 
 
 def splits():
