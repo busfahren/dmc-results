@@ -51,6 +51,7 @@ def merged_predictions(teams=None, test=False, keep_columns=None):
 
 
 def majority_vote(df, accuracies, rounded=False):
+    raise NotImplementedError
     names = df.columns.get_level_values('team').unique()
     mean_confidences = pd.Series([df[n]['confidence'].mean() for n in names],
                                  index=names)
@@ -78,4 +79,12 @@ def majority_vote(df, accuracies, rounded=False):
 
 
 def impute_confidences(merged):
-    return merged[merged.isnull().any(axis=1)]
+    """For each confidence subtract the classifier's mean confidence and then divide by the
+    standard deviation. Impute missing values with zeroes (the new mean)/
+    """
+    merged['confidence'] = (merged['confidence']
+                            .sub(merged['confidence'].mean())
+                            .div(merged['confidence'].std()))
+
+    merged['confidence'] = merged['confidence'].fillna(0)
+    return merged
