@@ -40,7 +40,6 @@ def orders_train():
     """Load original training set.
     """
     train = pd.read_csv('data/orders_train.txt', delimiter=';')
-    train['returnQuantity'] = train['returnQuantity'].astype(bool)
     return train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
 
 

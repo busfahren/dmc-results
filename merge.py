@@ -20,6 +20,9 @@ def merged_predictions(teams=None, test=False, keep_columns=None):
 
     # Load the superset of the predictions in the original data
     original = load.orders_train() if test else load.orders_class()
+    if test:
+        original['returnQuantityMultilabel'] = original.returnQuantity.copy()
+        original.returnQuantity = original.returnQuantity.astype(bool)
     merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
     predictions = original[merge_columns]
 
@@ -102,6 +105,10 @@ def binary_vector(train, test, columns):
     return known_mask
 
 
+def shuffle(df):
+    return df.reindex(np.random.permutation(df.index))
+
+
 def boosting_features(train, predictions, categories):
     # confidence vectors
     confs = predictions.confidence.copy()
@@ -116,6 +123,9 @@ def boosting_features(train, predictions, categories):
     M = pd.concat([confs, preds, known, predictions.original.returnQuantity.astype(int)], 1)
     M = M[(M.predA != M.predB) | (M.predA != M.predC)]
 
+    # shuffle DF
+    M = shuffle(M)
+
     # Create X and y as matrices to be passed to classifiers
     X = M.drop('returnQuantity', 1).as_matrix()
     y = np.squeeze(M.returnQuantity.as_matrix())
@@ -124,3 +134,6 @@ def boosting_features(train, predictions, categories):
 def precision(y, y_tick):
     return np.sum(y == y_tick)/len(y)
 
+
+def dmc_cost(y, y_tick):
+    return np.sum(np.abs(y - y_tick))
