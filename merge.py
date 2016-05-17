@@ -7,15 +7,23 @@ import load
 
 
 def merged_predictions(teams=None, test=False, keep_columns=None):
+    """Return each team's predictions in a merged DataFrame with the following format:
+
+                                                 | confidence | prediction | original     |
+                                                 | A | B | .. | A | B | .. | keep_columns |
+    | orderID | articleID | sizeCode | colorCode |   |   |    |   |   |    |              |
+    """
+    # Load all teams if none provided
     if teams is None:
         teams = load.team_names()
-
     classifications = load.predictions(teams, test)
-    merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
 
+    # Load the superset of the predictions in the original data
     original = load.orders_train() if test else load.orders_class()
+    merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
     predictions = original[merge_columns]
 
+    # Merge the confidence and prediction of each team into 'predictions'
     for team_name, team_df in classifications.items():
         team_df = team_df.rename(columns={
             'confidence': 'confidence_' + team_name,
@@ -24,12 +32,15 @@ def merged_predictions(teams=None, test=False, keep_columns=None):
         predictions = predictions.merge(team_df, on=merge_columns)
 
     predictions = predictions.set_index(merge_columns)
+
+    # Sort the columns alphabetically to apply a MultiIndex to the DataFrame
     predictions = predictions.reindex_axis(sorted(predictions.columns), axis=1)
     predictions.columns = pd.MultiIndex.from_tuples(list(itertools.product(
         ['confidence', 'prediction'],
         sorted(classifications.keys())
     )))
 
+    # If keep_columns is provided merge back the original with the columns included
     if keep_columns:
         original = original.set_index(merge_columns, drop=False)[keep_columns]
         idx = pd.MultiIndex.from_tuples(list(itertools.product(['original'], keep_columns)))

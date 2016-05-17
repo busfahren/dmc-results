@@ -18,6 +18,8 @@ def mean_accuracies(predictions):
 
 
 def evaluate_split_performance(train, test):
+    """Calculate performance of each team across splits.
+    """
     target = test['original', 'returnQuantity']
     predictions = test['prediction']
     splits = load.splits()
@@ -37,6 +39,8 @@ def evaluate_split_performance(train, test):
 
 
 def distinct_predictions(predictions):
+    """For each combination of teams calculate the relative number of differing predictions.
+    """
     predictions = predictions['prediction']
     teams = predictions.columns
 
@@ -53,6 +57,9 @@ def distinct_predictions(predictions):
 
 
 def distinct_split_predictions(train, test):
+    """For each combination of teams calculate the relative number of distinct predictions across
+    splits.
+    """
     predictions = test['prediction']
     teams = predictions.columns
     team_combinations = list(itertools.combinations(teams, 2))
@@ -71,6 +78,8 @@ def distinct_split_predictions(train, test):
 
 
 def split_mean_confidences(train, test):
+    """Calculate each team's mean confidence per split.
+    """
     confidences = test['confidence']
     splits = load.splits()
 
@@ -84,6 +93,8 @@ def split_mean_confidences(train, test):
 
 
 def split_sizes(train, test):
+    """Calculate the size of each split.
+    """
     splits = load.splits()
     sizes = pd.DataFrame(columns=['size'], index=splits.index)
     for split, mask in _iterate_split_masks(splits, train, test):
@@ -94,6 +105,8 @@ def split_sizes(train, test):
 
 
 def _iterate_split_masks(splits, train, test):
+    """Yield an iterator over the splits returning a mask for each split.
+    """
     known = pd.DataFrame({col: test[col].isin(train[col]) for col in splits.columns})
 
     for split, row in list(splits.iterrows()):
@@ -105,9 +118,10 @@ def _iterate_split_masks(splits, train, test):
 
 
 def test_complement(test):
+    """Return the complement of the test set in the original training data.
+    """
     original_train = load.orders_train()
-    test = test.merge(original_train, left_index=True,
-                      right_on=merge_columns)
+    test = test.merge(original_train, left_index=True, right_on=merge_columns)
     return original_train[~(original_train['orderID'].isin(test['orderID'])
                             & original_train['articleID'].isin(test['articleID'])
                             & original_train['colorCode'].isin(test['colorCode'])

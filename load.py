@@ -27,6 +27,8 @@ def predictions(names=None, test=True):
 
 
 def splits():
+    """Load table with split features as columns and True/False combinations as rows.
+    """
     known_combinations = pd.read_csv('data/splits.csv', delimiter=';').astype(bool)
     known_combinations.index = pd.Index([', '.join(row.index[row]) for _, row
                                          in known_combinations.iterrows()])
@@ -35,11 +37,15 @@ def splits():
 
 
 def orders_train():
+    """Load original training set.
+    """
     train = pd.read_csv('data/orders_train.txt', delimiter=';')
     train['returnQuantity'] = train['returnQuantity'].astype(bool)
     return train.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
 
 
 def orders_class():
+    """Load original test set.
+    """
     df = pd.read_csv('data/orders_class.txt', delimiter=';')
     return df.set_index(['orderID', 'articleID', 'colorCode', 'sizeCode'], drop=False)
