@@ -14,6 +14,7 @@ def mean_accuracies(predictions):
     target = predictions['original', 'returnQuantity']
     means = (predictions['prediction']
              .apply(lambda team: (team == target).sum() / len(target)))
+    means = means.sort_values()
     return pd.DataFrame(means, columns=['accuracy'])
 
 

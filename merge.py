@@ -54,22 +54,20 @@ def merged_predictions(teams=None, test=False, keep_columns=None):
     return predictions
 
 
-def _weighted_row_majority(row):
-    predictions = row[0][1]
-    weights = row[1][1]
-    return predictions.mul(weights).sum() / weights.sum()
+def _weighted_row_majority(predictions, weights):
+    return sum(predictions * weights) / sum(weights)
 
 
-def weighted_majority_vote(merged, team_weights, round=False):
+def weighted_majority_vote(merged, team_weights, rounded=True):
     merged = merged.copy()
-    predictions = merged['prediction'].copy()
+    predictions = merged['prediction']
     weights = merged['confidence'].mul(team_weights).copy()
-    rows = zip(predictions.iterrows(), weights.iterrows())
+    rows = zip(predictions.values, weights.values)
 
     pool = mp.Pool()
-    majorities = pool.map(_weighted_row_majority, rows, chunksize=100)
+    majorities = pool.starmap(_weighted_row_majority, rows, chunksize=1000)
 
-    if round:
+    if rounded:
         majorities = np.round(majorities).astype(bool)
 
     merged['prediction', 'weighted'] = majorities
@@ -86,31 +84,37 @@ def naive_majority_vote(predictions):
 
 
 def impute_confidence(predictions):
-    """For each confidence subtract the classifier's mean confidence and then divide by the
-    standard deviation. Impute missing values with zeroes (the new mean). Finally move the
-    distribution to center around 1 and range from 0 to 2.
+    """For each confidence subtract the classifier's mean confidence, impute missing values and
+    move the distribution's center to 1.
     """
     imputed = predictions.copy()
 
-    # Convert confidences to standard deviation distances
-    imputed['confidence'] = (imputed['confidence']
-                             .sub(imputed['confidence'].mean())
-                             .div(imputed['confidence'].std()))
+    # Convert confidences to mean distances
+    imputed['confidence'] = (imputed['confidence'].sub(imputed['confidence'].mean()))
 
     # Fill missing values
     imputed['confidence'] = imputed['confidence'].fillna(0)
 
-    # Confine range to distance of 1 from the mean and move distribution's center to 1.
-    imputed['confidence'] = (imputed['confidence']
-                             .div(imputed['confidence'].abs().max())
-                             .add(1))
+    # Move range to distance of 1 from the mean and move distribution's center to 1.
+    imputed['confidence'] = imputed['confidence'].add(1)
     return imputed
+
+
+def estimate_return_quantity(quantity):
+    if quantity == 1 or quantity == 2:
+        return 1
+    if quantity == 3 or quantity == 4:
+        return 2
+    if quantity == 5:
+        return 3
+    return 0
 
 
 def binary_vector(train, test, columns):
     """Create a mask of test values seen in training data.
     """
-    known_mask = test[columns].copy().apply(lambda column: column.isin(train[column.name])).astype(int)
+    known_mask = test[columns].copy().apply(lambda column: column.isin(train[column.name])).astype(
+        int)
     known_mask.columns = ('known_' + c for c in columns)
     return known_mask
 
@@ -157,7 +161,7 @@ def class_features(train, predictions, categories):
 
 
 def precision(y, y_tick):
-    return np.sum(y == y_tick)/len(y)
+    return np.sum(y == y_tick) / len(y)
 
 
 def dmc_cost(y, y_tick):
