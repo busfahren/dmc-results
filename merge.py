@@ -90,13 +90,13 @@ def impute_confidence(predictions):
     imputed = predictions.copy()
 
     # Convert confidences to mean distances
-    imputed['confidence'] = (imputed['confidence'].sub(imputed['confidence'].mean()))
+    imputed['confidence'] = (imputed['confidence'].div(imputed['confidence'].mean()))
 
     # Fill missing values
-    imputed['confidence'] = imputed['confidence'].fillna(0)
+    imputed['confidence'] = imputed['confidence'].fillna(1)
 
     # Move range to distance of 1 from the mean and move distribution's center to 1.
-    imputed['confidence'] = imputed['confidence'].add(1)
+    # imputed['confidence'] = imputed['confidence'].add(1)
     return imputed
 
 
