@@ -36,6 +36,16 @@ def splits():
     return known_combinations
 
 
+def split_weights():
+    """Load table with split features as columns and True/False combinations as rows.
+    """
+    known_combinations = pd.read_csv('data/split_weights.csv', delimiter=';').astype(bool)
+    known_combinations.index = pd.Index([', '.join(row.index[row]) for _, row
+                                         in known_combinations.iterrows()])
+    known_combinations.index.name = 'known'
+    return known_combinations
+
+
 def orders_train():
     """Load original training set.
     """

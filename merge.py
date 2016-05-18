@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 import load
+import evaluate
 
 
 def merged_predictions(teams=None, test=False, keep_columns=None):
@@ -58,6 +59,12 @@ def _weighted_row_majority(predictions, weights):
     return sum(predictions * weights) / sum(weights)
 
 
+def group_majority_vote(train, merged, weights, rounded=True):
+    splits = load.split_weights()
+    for split, mask in evaluate._iterate_split_masks(splits, train, merged['original']):
+        pass
+
+
 def weighted_majority_vote(merged, team_weights, rounded=True):
     merged = merged.copy()
     predictions = merged['prediction']
@@ -101,13 +108,23 @@ def impute_confidence(predictions):
 
 
 def estimate_return_quantity(quantity):
-    if quantity == 1 or quantity == 2:
+    if quantity in [1, 2]:
         return 1
-    if quantity == 3 or quantity == 4:
+    if quantity in [3, 4]:
         return 2
-    if quantity == 5:
+    if quantity in [5]:
         return 3
     return 0
+
+
+def finalize(binary_prediction, name):
+    class_data = load.orders_class()
+    return_quantities = class_data['quantity'].copy()
+    class_data = class_data[['orderID', 'articleID', 'colorCode', 'sizeCode']]
+    return_quantities.loc[~binary_prediction] = 0
+    return_quantities.loc[binary_prediction] = return_quantities[binary_prediction].apply(estimate_return_quantity)
+    class_data['prediction'] = return_quantities
+    class_data.to_csv('final/' + name + '.csv', index=False, sep=';')
 
 
 def binary_vector(train, test, columns):
