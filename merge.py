@@ -21,6 +21,9 @@ def merged_predictions(teams=None, test=False, keep_columns=None):
 
     # Load the superset of the predictions in the original data
     original = load.orders_train() if test else load.orders_class()
+    if test:
+        original['returnQuantityMultilabel'] = original.returnQuantity.copy()
+        original.returnQuantity = original.returnQuantity.astype(bool)
     merge_columns = ['orderID', 'articleID', 'colorCode', 'sizeCode']
     predictions = original[merge_columns]
 
@@ -105,3 +108,61 @@ def estimate_return_quantity(quantity):
     if quantity == 5:
         return 3
     return 0
+
+
+def binary_vector(train, test, columns):
+    """Create a mask of test values seen in training data.
+    """
+    known_mask = test[columns].copy().apply(lambda column: column.isin(train[column.name])).astype(
+        int)
+    known_mask.columns = ('known_' + c for c in columns)
+    return known_mask
+
+
+def shuffle(df):
+    return df.reindex(np.random.permutation(df.index))
+
+
+def boosting_features(train, predictions, categories):
+    # confidence vectors
+    confs = predictions.confidence.copy()
+    confs.columns = ['confA', 'confB', 'confC']
+    # prediction vectors
+    preds = predictions.prediction.copy().astype(int)
+    preds.columns = ['predA', 'predB', 'predC']
+    # binary vectors for known/unknown categories
+    known = binary_vector(train, predictions.original, categories)
+
+    # Merge all feature vectors and only mind rows with disagreement in prediction
+    M = pd.concat([confs, preds, known, predictions.original.returnQuantity.astype(int)], 1)
+    M = M[(M.predA != M.predB) | (M.predA != M.predC)]
+
+    # shuffle DF
+    M = shuffle(M)
+
+    # Create X and y as matrices to be passed to classifiers
+    X = M.drop('returnQuantity', 1).as_matrix()
+    y = np.squeeze(M.returnQuantity.as_matrix())
+    return X, y
+
+
+def class_features(train, predictions, categories):
+    confs = predictions.confidence.copy()
+    confs.columns = ['confA', 'confB', 'confC']
+    preds = predictions.prediction.copy().astype(int)
+    preds.columns = ['predA', 'predB', 'predC']
+    known = binary_vector(train, predictions.original, categories)
+    M = pd.concat([confs, preds, known], 1)
+    M_dis = M[(M.predA != M.predB) | (M.predA != M.predC)]
+    M_agr = M[(M.predA == M.predB) & (M.predA == M.predC)]
+
+    X = M_dis.as_matrix()
+    return X, M_dis, M_agr
+
+
+def precision(y, y_tick):
+    return np.sum(y == y_tick) / len(y)
+
+
+def dmc_cost(y, y_tick):
+    return np.sum(np.abs(y - y_tick))
