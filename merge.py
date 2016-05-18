@@ -131,6 +131,21 @@ def boosting_features(train, predictions, categories):
     y = np.squeeze(M.returnQuantity.as_matrix())
     return X, y
 
+
+def class_features(train, predictions, categories):
+    confs = predictions.confidence.copy()
+    confs.columns = ['confA', 'confB', 'confC']
+    preds = predictions.prediction.copy().astype(int)
+    preds.columns = ['predA', 'predB', 'predC']
+    known = binary_vector(train, predictions.original, categories)
+    M = pd.concat([confs, preds, known], 1)
+    M_dis = M[(M.predA != M.predB) | (M.predA != M.predC)]
+    M_agr = M[(M.predA == M.predB) & (M.predA == M.predC)]
+
+    X = M_dis.as_matrix()
+    return X, M_dis, M_agr
+
+
 def precision(y, y_tick):
     return np.sum(y == y_tick)/len(y)
 
